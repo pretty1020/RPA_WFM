@@ -1,8 +1,7 @@
 pandas
-streamlit
+streamlit>=1.38.0
 pyyaml
 openpyxl
 requests
 plotly
-altair<5
 numpy
