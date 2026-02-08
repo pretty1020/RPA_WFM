@@ -81,11 +81,10 @@ label, .stSlider label, .stSelectbox label, .stNumberInput label, .stTextInput l
 .stRadio [data-testid="stMarkdownContainer"] p { color: #c8d6e8 !important; }
 
 .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 1200px; position: relative; z-index: 1; }
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0a1428 0%, #0e1a34 100%) !important;
-    border-right: 1px solid rgba(160, 200, 255, 0.08);
-}
-[data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label { color: #b0c0d8 !important; }
+/* ── Hide sidebar completely ── */
+[data-testid="stSidebar"] { display: none !important; }
+[data-testid="collapsedControl"] { display: none !important; }
+button[kind="headerNoPadding"] { display: none !important; }
 header[data-testid="stHeader"] { background: transparent !important; }
 
 /* ── Hero Section ── */
@@ -986,39 +985,7 @@ def nav_to(page_name):
 # ============================================================
 # SIDEBAR (minimal — supplementary info)
 # ============================================================
-with st.sidebar:
-    st.markdown("### ⚙️ Settings")
-    st.session_state.seed = st.number_input(
-        "Data seed", min_value=1, max_value=9999,
-        value=int(st.session_state.seed),
-        help="Change to generate a different scenario"
-    )
-    st.markdown("---")
-    st.markdown(
-        "<div style='padding:14px 16px; border-radius:14px; "
-        "background:linear-gradient(135deg, rgba(0,229,255,0.06) 0%, rgba(224,64,251,0.04) 100%); "
-        "border:1px solid rgba(0,229,255,0.15); margin-bottom:12px;'>"
-        "<div style='font-size:0.82rem; color:#00e5ff; font-weight:700; margin-bottom:6px;'>✅ FREE Edition</div>"
-        "<div style='font-size:0.75rem; color:#b8c8dd; line-height:1.5;'>"
-        "Use Case Library + Simulator included.</div>"
-        "</div>",
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        "<div style='padding:14px 16px; border-radius:14px; "
-        "background:linear-gradient(135deg, rgba(224,64,251,0.06) 0%, rgba(139,92,246,0.04) 100%); "
-        "border:1px solid rgba(224,64,251,0.15);'>"
-        "<div style='font-size:0.75rem; color:#e040fb; font-weight:700; margin-bottom:4px;'>🚀 Need Advanced Features?</div>"
-        "<div style='font-size:0.72rem; color:#b8c8dd; line-height:1.5;'>"
-        "Bot Builder, Connectors, Rules Editor & more.</div>"
-        "<div style='margin-top:8px; font-size:0.72rem;'>"
-        "📧 <a href='mailto:support@wfmcommons.com' style='color:#00e5ff; text-decoration:none; font-weight:600;'>"
-        "support@wfmcommons.com</a></div>"
-        "</div>",
-        unsafe_allow_html=True
-    )
-    st.markdown("---")
-    st.markdown("<div style='font-size:0.72rem; color:#4a5568;'>Built for WFM learning.</div>", unsafe_allow_html=True)
+# Sidebar removed — seed input moved into Simulator config panel
 
 
 # ============================================================
@@ -1485,10 +1452,22 @@ elif page == "simulator":
     bot_display = st.radio("Select Bot", list(bot_options.keys()), horizontal=True, label_visibility="collapsed")
     bot = bot_options[bot_display]
 
+    # Clear stale results if user switches bots
+    if st.session_state.get("sim_bot") and st.session_state.sim_bot != bot:
+        st.session_state.sim_ran = False
+
     st.markdown("<div class='spacer'></div>", unsafe_allow_html=True)
 
     # ── Config Panel ──
     cfg1, cfg2 = st.columns([0.6, 0.4], gap="large")
+
+    # Defaults for all thresholds (so they exist even when a different bot's sliders are shown)
+    sl_target = 80
+    asa_limit = 60
+    gap_limit = 5
+    adh_target = 85
+    ooa_limit = 30
+    shrink_pp = 2
 
     with cfg1:
         st.markdown("<div class='section-header'>🎛️ Rules & Thresholds</div>", unsafe_allow_html=True)
@@ -1517,6 +1496,11 @@ elif page == "simulator":
         speed = st.select_slider("Simulation Speed", options=["Fast", "Normal", "Slow"], value="Normal")
         speed_map = {"Fast": 0.08, "Normal": 0.18, "Slow": 0.30}
         intervals = st.selectbox("Intervals (Intraday)", [24, 48, 96], index=1)
+        st.session_state.seed = st.number_input(
+            "Data Seed", min_value=1, max_value=9999,
+            value=int(st.session_state.seed),
+            help="Change to generate a different random scenario"
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='spacer'></div>", unsafe_allow_html=True)
@@ -1528,6 +1512,13 @@ elif page == "simulator":
         st.session_state.sim_ran = True
         st.session_state.sim_bot = bot
         st.session_state.sim_seed = int(st.session_state.seed)
+        st.session_state.sim_sl_target = sl_target
+        st.session_state.sim_asa_limit = asa_limit
+        st.session_state.sim_gap_limit = gap_limit
+        st.session_state.sim_adh_target = adh_target
+        st.session_state.sim_ooa_limit = ooa_limit
+        st.session_state.sim_shrink_pp = shrink_pp
+        st.session_state.sim_intervals = intervals
         st.session_state.logs = []
 
     if run:
@@ -1554,6 +1545,13 @@ elif page == "simulator":
         logs = st.session_state.logs
         seed = st.session_state.sim_seed
         bot = st.session_state.sim_bot
+        sl_target = st.session_state.get("sim_sl_target", 80)
+        asa_limit = st.session_state.get("sim_asa_limit", 60)
+        gap_limit = st.session_state.get("sim_gap_limit", 5)
+        adh_target = st.session_state.get("sim_adh_target", 85)
+        ooa_limit = st.session_state.get("sim_ooa_limit", 30)
+        shrink_pp = st.session_state.get("sim_shrink_pp", 2)
+        intervals = st.session_state.get("sim_intervals", 48)
         is_fresh = run  # True only on button click, False on checkbox re-runs
 
         # ── INTRADAY HEALTH CHECK ──
